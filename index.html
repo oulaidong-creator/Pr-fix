@@ -338,10 +338,15 @@
     }
 
     function passInspection(id) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      devices = devices.map(d => d.id === id ? { ...d, lastDate: todayStr } : d);
-      saveDevices();
-      renderApp();
+      const device = devices.find(d => d.id === id);
+      const deviceName = device ? device.name : 'dieses Gerät';
+
+      if (confirm(`Möchtest du die Prüfung für "${deviceName}" wirklich als bestanden markieren?\n\nDas letzte Prüfdatum wird auf das heutige Datum gesetzt.`)) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        devices = devices.map(d => d.id === id ? { ...d, lastDate: todayStr } : d);
+        saveDevices();
+        renderApp();
+      }
     }
 
     function deleteDevice(id) {
