@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrüfFix – Wartungs- & Prüffristen-Manager</title>
+  
+  <!-- PWA Setup -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1063/1063376.png">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased bg-slate-900 text-slate-100">
+
+  <!-- Top Navigation / Header -->
+  <header class="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 py-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white leading-tight">PrüfFix</h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Wartungs- & Prüffristen-Manager</p>
+        </div>
+      </div>
+      <button onclick="toggleModal(true)" class="flex items-center space-x-2 bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-lg shadow-sky-600/20 active:scale-95">
+        <i data-lucide="plus" class="w-4 h-4"></i>
+        <span>Neues Gerät</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
+
+    <!-- KPI Summary Grid -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center space-x-4">
+        <div class="p-3 bg-slate-700/50 text-slate-300 rounded-lg">
+          <i data-lucide="boxes" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div id="kpi-total" class="text-2xl font-bold text-white">0</div>
+          <div class="text-xs text-slate-400">Gesamt Geräte</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-800/60 border border-rose-500/30 p-4 rounded-xl flex items-center space-x-4">
+        <div class="p-3 bg-rose-500/10 text-rose-400 rounded-lg">
+          <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div id="kpi-overdue" class="text-2xl font-bold text-rose-400">0</div>
+          <div class="text-xs text-slate-400">Überfällig</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-800/60 border border-amber-500/30 p-4 rounded-xl flex items-center space-x-4">
+        <div class="p-3 bg-amber-500/10 text-amber-400 rounded-lg">
+          <i data-lucide="clock" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div id="kpi-due" class="text-2xl font-bold text-amber-400">0</div>
+          <div class="text-xs text-slate-400">Fällig &lt; 30 Tage</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-800/60 border border-emerald-500/30 p-4 rounded-xl flex items-center space-x-4">
+        <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg">
+          <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div id="kpi-valid" class="text-2xl font-bold text-emerald-400">0</div>
+          <div class="text-xs text-slate-400">Gültig</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filter & Search Bar -->
+    <section class="bg-slate-800/40 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row gap-3">
+      <div class="relative flex-1">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input type="text" id="search-input" oninput="renderApp()" placeholder="Gerät, Inventarnummer oder Standort suchen..." class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500 transition">
+      </div>
+      <select id="category-filter" onchange="renderApp()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+        <option value="">Alle Kategorien</option>
+        <option value="Elektro">Elektrowerkzeuge (DGUV V3)</option>
+        <option value="Brandschutz">Brandschutz</option>
+        <option value="Fahrzeuge">Fahrzeuge / Stapler</option>
+        <option value="Labor">Labor & Messgeräte</option>
+      </select>
+      <select id="status-filter" onchange="renderApp()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+        <option value="">Alle Status-Zustände</option>
+        <option value="overdue">🔴 Überfällig</option>
+        <option value="due">🟡 Fällig in Kürze</option>
+        <option value="valid">🟢 Gültig</option>
+      </select>
+    </section>
+
+    <!-- Daten-Aktionen & Export-Bar -->
+    <section class="bg-slate-800/20 border border-slate-800/80 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex items-center space-x-2 text-slate-400">
+        <i data-lucide="database" class="w-4 h-4 text-sky-400"></i>
+        <span class="font-medium text-slate-300">Datenverwaltung & Audit-Export:</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="exportCSV()" class="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 font-medium transition">
+          <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+          <span>CSV-Export (Excel / Audit)</span>
+        </button>
+        <button onclick="exportJSON()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 font-medium transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>JSON Backup</span>
+        </button>
+        <label class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 font-medium cursor-pointer transition">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+          <span>Import</span>
+          <input type="file" id="json-input" accept=".json" onchange="importJSON(event)" class="hidden">
+        </label>
+        <button onclick="resetDemoData()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 font-medium transition">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          <span>Demo-Reset</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Device Cards Grid -->
+    <section id="device-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    </section>
+
+  </main>
+
+  <!-- Modal: Neues Gerät anlegen / bearbeiten -->
+  <div id="modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+        <h2 id="modal-title" class="text-lg font-bold text-white">Neues Gerät / Prüfmittel anlegen</h2>
+        <button onclick="toggleModal(false)" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="device-form" class="space-y-4" onsubmit="handleFormSubmit(event)">
+        <input type="hidden" id="device-id">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Gerätebezeichnung *</label>
+          <input type="text" id="device-name" required placeholder="z. B. Winkelschleifer Bosch GWS" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Kategorie</label>
+            <select id="device-category" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+              <option value="Elektro">Elektrowerkzeug</option>
+              <option value="Brandschutz">Brandschutz</option>
+              <option value="Fahrzeuge">Fahrzeug / Stapler</option>
+              <option value="Labor">Laborgerät</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Inventar- / Serien-Nr.</label>
+            <input type="text" id="device-inv" placeholder="z. B. INV-2025-99" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Standort / Einsatzort</label>
+          <input type="text" id="device-location" placeholder="z. B. Werkstatt A / Regal 2" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Letztes Prüfdatum *</label>
+            <input type="date" id="device-date" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Intervall (Monate) *</label>
+            <input type="number" id="device-interval" value="12" min="1" max="120" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-3 border-t border-slate-700">
+          <button type="button" onclick="toggleModal(false)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition">Abbrechen</button>
+          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-lg text-sm transition">Gerät Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_DEVICES = [
+      { id: '1', name: 'Bohrhammer Makita HR2470', category: 'Elektro', inv: 'INV-2024-01', location: 'Werkstatt / Regal B3', lastDate: '2024-09-01', interval: 12 },
+      { id: '2', name: 'Feuerlöscher Schaum 6L', category: 'Brandschutz', inv: 'BS-FL-04', location: 'Flur Fluchtweg EG', lastDate: '2023-11-10', interval: 24 },
+      { id: '3', name: 'Gabelstapler Jungheinrich EFG', category: 'Fahrzeuge', inv: 'ST-01', location: 'Lager Halle 2', lastDate: '2025-05-01', interval: 12 }
+    ];
+
+    let devices = JSON.parse(localStorage.getItem('pruffix_devices')) || DEFAULT_DEVICES;
+
+    function saveDevices() {
+      localStorage.setItem('pruffix_devices', JSON.stringify(devices));
+    }
+
+    function calculateInspectionDetails(lastDateStr, intervalMonths) {
+      const lastDate = new Date(lastDateStr);
+      const nextDate = new Date(lastDate);
+      nextDate.setMonth(nextDate.getMonth() + parseInt(intervalMonths));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      nextDate.setHours(0, 0, 0, 0);
+
+      const diffTime = nextDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      let status = 'valid';
+      let badgeBg = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      let borderLeft = 'border-l-emerald-500';
+      let statusText = `🟢 Gültig (${diffDays} Tage verbleibend)`;
+      let dateColor = 'text-emerald-400';
+
+      if (diffDays < 0) {
+        status = 'overdue';
+        badgeBg = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+        borderLeft = 'border-l-rose-500';
+        statusText = `🔴 Überfällig (${Math.abs(diffDays)} Tage überstiegen)`;
+        dateColor = 'text-rose-400';
+      } else if (diffDays <= 30) {
+        status = 'due';
+        badgeBg = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        borderLeft = 'border-l-amber-500';
+        statusText = `🟡 Fällig in ${diffDays} Tag(en)`;
+        dateColor = 'text-amber-400';
+      }
+
+      const formatDate = (d) => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      return {
+        nextDateFormatted: formatDate(nextDate),
+        lastDateFormatted: formatDate(lastDate),
+        status, badgeBg, borderLeft, statusText, dateColor, diffDays
+      };
+    }
+
+    function renderApp() {
+      const grid = document.getElementById('device-grid');
+      const searchVal = document.getElementById('search-input').value.toLowerCase();
+      const catVal = document.getElementById('category-filter').value;
+      const statusVal = document.getElementById('status-filter').value;
+
+      grid.innerHTML = '';
+
+      let kpiTotal = 0, kpiOverdue = 0, kpiDue = 0, kpiValid = 0;
+
+      devices.forEach(device => {
+        const details = calculateInspectionDetails(device.lastDate, device.interval);
+
+        kpiTotal++;
+        if (details.status === 'overdue') kpiOverdue++;
+        if (details.status === 'due') kpiDue++;
+        if (details.status === 'valid') kpiValid++;
+
+        const matchesSearch = device.name.toLowerCase().includes(searchVal) || 
+                              (device.inv && device.inv.toLowerCase().includes(searchVal)) || 
+                              (device.location && device.location.toLowerCase().includes(searchVal));
+        const matchesCat = !catVal || device.category === catVal;
+        const matchesStatus = !statusVal || details.status === statusVal;
+
+        if (matchesSearch && matchesCat && matchesStatus) {
+          const cardHtml = `
+            <div class="bg-slate-800 border-l-4 ${details.borderLeft} border-y border-r border-slate-700/70 rounded-xl p-5 shadow-lg flex flex-col justify-between space-y-4">
+              <div>
+                <div class="flex items-start justify-between">
+                  <div>
+                    <span class="inline-block text-[10px] font-semibold tracking-wider uppercase ${details.badgeBg} px-2 py-0.5 rounded border mb-2">
+                      ${details.statusText}
+                    </span>
+                    <h3 class="font-bold text-lg text-white">${device.name}</h3>
+                  </div>
+                  ${device.inv ? `<span class="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-700">${device.inv}</span>` : ''}
+                </div>
+                ${device.location ? `
+                  <p class="text-xs text-slate-400 mt-1 flex items-center space-x-1">
+                    <i data-lucide="map-pin" class="w-3 h-3"></i>
+                    <span>${device.location}</span>
+                  </p>` : ''}
+              </div>
+
+              <div class="space-y-2 border-t border-slate-700/50 pt-3 text-xs">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Letzte Prüfung:</span>
+                  <span class="text-slate-200">${details.lastDateFormatted}</span>
+                </div>
+                <div class="flex justify-between font-semibold">
+                  <span class="text-slate-400">Nächste Prüfung:</span>
+                  <span class="${details.dateColor}">${details.nextDateFormatted}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Prüfintervall:</span>
+                  <span class="text-slate-200">${device.interval} Monate</span>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-2 pt-2">
+                <button onclick="passInspection('${device.id}')" class="flex-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center space-x-1 transition active:scale-95">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                  <span>Prüfung bestanden</span>
+                </button>
+                <button onclick="editDevice('${device.id}')" class="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition">
+                  <i data-lucide="edit-2" class="w-4 h-4"></i>
+                </button>
+                <button onclick="deleteDevice('${device.id}')" class="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          `;
+          grid.insertAdjacentHTML('beforeend', cardHtml);
+        }
+      });
+
+      document.getElementById('kpi-total').innerText = kpiTotal;
+      document.getElementById('kpi-overdue').innerText = kpiOverdue;
+      document.getElementById('kpi-due').innerText = kpiDue;
+      document.getElementById('kpi-valid').innerText = kpiValid;
+
+      lucide.createIcons();
+    }
+
+    function passInspection(id) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      devices = devices.map(d => d.id === id ? { ...d, lastDate: todayStr } : d);
+      saveDevices();
+      renderApp();
+    }
+
+    function deleteDevice(id) {
+      if (confirm('Möchtest du dieses Gerät wirklich löschen?')) {
+        devices = devices.filter(d => d.id !== id);
+        saveDevices();
+        renderApp();
+      }
+    }
+
+    function editDevice(id) {
+      const device = devices.find(d => d.id === id);
+      if (!device) return;
+
+      document.getElementById('device-id').value = device.id;
+      document.getElementById('device-name').value = device.name;
+      document.getElementById('device-category').value = device.category;
+      document.getElementById('device-inv').value = device.inv || '';
+      document.getElementById('device-location').value = device.location || '';
+      document.getElementById('device-date').value = device.lastDate;
+      document.getElementById('device-interval').value = device.interval;
+
+      document.getElementById('modal-title').innerText = 'Gerät bearbeiten';
+      toggleModal(true);
+    }
+
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      const id = document.getElementById('device-id').value;
+
+      const newDevice = {
+        id: id || Date.now().toString(),
+        name: document.getElementById('device-name').value,
+        category: document.getElementById('device-category').value,
+        inv: document.getElementById('device-inv').value,
+        location: document.getElementById('device-location').value,
+        lastDate: document.getElementById('device-date').value,
+        interval: parseInt(document.getElementById('device-interval').value)
+      };
+
+      if (id) {
+        devices = devices.map(d => d.id === id ? newDevice : d);
+      } else {
+        devices.push(newDevice);
+      }
+
+      saveDevices();
+      renderApp();
+      toggleModal(false);
+    }
+
+    function toggleModal(show) {
+      const modal = document.getElementById('modal');
+      if (show) {
+        modal.classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+        document.getElementById('device-form').reset();
+        document.getElementById('device-id').value = '';
+        document.getElementById('modal-title').innerText = 'Neues Gerät / Prüfmittel anlegen';
+      }
+    }
+
+    function exportCSV() {
+      if (devices.length === 0) return alert('Keine Geräte vorhanden.');
+      const headers = ['ID', 'Gerätename', 'Kategorie', 'Inventarnummer', 'Standort', 'Letztes Prüfdatum', 'Intervall (Monate)', 'Nächstes Prüfdatum', 'Status', 'Tage verbleibend'];
+      const rows = devices.map(d => {
+        const details = calculateInspectionDetails(d.lastDate, d.interval);
+        return [`"${d.id}"`, `"${d.name.replace(/"/g, '""')}"`, `"${d.category}"`, `"${(d.inv || '').replace(/"/g, '""')}"`, `"${(d.location || '').replace(/"/g, '""')}"`, `"${d.lastDate}"`, `"${d.interval}"`, `"${details.nextDateFormatted}"`, `"${details.status}"`, `"${details.diffDays}"`].join(';');
+      });
+      const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Pruffix_Pruefprotokoll_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportJSON() {
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(devices, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `Pruffix_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+    }
+
+    function importJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const importedData = JSON.parse(event.target.result);
+          if (Array.isArray(importedData)) {
+            if (confirm(`${importedData.length} Geräte importieren? Aktuelle Daten werden überschrieben.`)) {
+              devices = importedData;
+              saveDevices();
+              renderApp();
+            }
+          }
+        } catch (err) { alert('Fehler beim Import: ' + err.message); }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    function resetDemoData() {
+      if (confirm('Auf Demo-Muster zurücksetzen?')) {
+        devices = JSON.parse(JSON.stringify(DEFAULT_DEVICES));
+        saveDevices();
+        renderApp();
+      }
+    }
+
+    renderApp();
+  </script>
+</body>
+</html>
